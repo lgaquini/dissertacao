@@ -1,10 +1,42 @@
-# Python-generated files
+# ── Python (tool/) ────────────────────────────────────────────────────────────
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
-
-# Virtual environments
 .venv
+
+# ── Artefatos pesados ou regeneráveis da ferramenta (ver tool/README.md) ──────
+# Índice vetorial: regerar com `uv run python -m rag.ingest`
+tool/chroma_db/
+# Voz do Piper (~90 MB) e binário standalone: baixar à parte
+tool/models/
+# PDFs-fonte dos livros (~86 MB); os .md derivados continuam versionados
+tool/data/livros/*.pdf
+
+# ── LaTeX (text/) ─────────────────────────────────────────────────────────────
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lol
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.synctex(busy)
+*.toc
+*.xdv
+# PDF compilado (só na raiz de text/; figuras em text/imagens/ continuam versionadas)
+text/*.pdf
+
+# ── Editor / SO ───────────────────────────────────────────────────────────────
+.DS_Store
+*~
