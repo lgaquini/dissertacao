@@ -13,7 +13,7 @@ from pathlib import Path
 from pypdf import PdfReader
 
 from config import CHUNK_OVERLAP, CHUNK_SIZE, DATA_DIR, DICTIONARY_FILES, LIVROS_DIR
-from rag.chunking import chunk_dictionary
+from rag.chunking import chunk_dictionary, chunk_sectioned_text
 from rag.embeddings import embed
 from rag.vectorstore import get_collection
 
@@ -60,7 +60,23 @@ def ingest_file(path: Path, collection) -> int:
             }
             for i, e in enumerate(entries)
         ]
+    elif path.suffix.lower() == ".txt":
+        sections = chunk_sectioned_text(text, max_chars=CHUNK_SIZE)
+        if not sections:
+            return 0
+        chunks = [s.text for s in sections]
+        metadatas = [
+            {
+                "source": path.name,
+                "chunk": i,
+                "title": s.title,
+                # ChromaDB não aceita None em metadados
+                **({"section": s.section} if s.section else {}),
+            }
+            for i, s in enumerate(sections)
+        ]
     else:
+        # PDFs: texto extraído sem estrutura confiável de parágrafos.
         chunks = _chunk(text)
         if not chunks:
             return 0
@@ -69,7 +85,9 @@ def ingest_file(path: Path, collection) -> int:
     ids = [_doc_id(path.name, i) for i in range(len(chunks))]
     embeddings = embed(chunks)
 
-    # upsert evita duplicatas ao re-ingerir o mesmo arquivo
+    # Remove os chunks antigos do arquivo antes de inserir: se a nova divisão
+    # gerar menos chunks, os ids excedentes da versão anterior ficariam órfãos.
+    collection.delete(where={"source": path.name})
     collection.upsert(
         ids=ids,
         embeddings=embeddings,

@@ -17,7 +17,12 @@ DICTIONARY_FILES = {"dic1.md", "dic2.md"}
 CHROMA_COLLECTION = "historia"
 
 # --- Embeddings ---
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# Multilíngue: o corpus é em português (all-MiniLM-L6-v2 é só inglês). Lê no máximo
+# 128 tokens por chunk. Comparação em scripts/eval_retrieval.py (piloto, hit@4):
+# all-MiniLM-L6-v2 0,38 → este 0,69. BAAI/bge-m3 chegou a 0,91, mas não foi adotado:
+# 2,2 GB em RAM no Pi 5 junto com o LLM (~3,4 GB), e a consulta é embedada no Pi.
+# Ao trocar o modelo, reindexe: uv run ingest
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 # --- RAG ---
 RAG_TOP_K = 4          # número de chunks recuperados por consulta

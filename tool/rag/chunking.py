@@ -1,4 +1,10 @@
-"""Semantic chunking for the dictionary-style markdown sources (data/livros).
+"""Structure-aware chunking for the knowledge sources.
+
+Two chunkers, one per source shape:
+
+- `chunk_dictionary` — dictionary-style markdown in data/livros (below).
+- `chunk_sectioned_text` — the essay-style .txt files in data/historia
+  (see its docstring).
 
 Both dictionaries share a heading convention: each verbete (entry) starts
 with a short headword followed by "." or ":" and a space, e.g.
@@ -102,4 +108,68 @@ def chunk_dictionary(text: str, max_chars: int = 500) -> list[DictionaryChunk]:
             piece_text = piece if piece.startswith(headword) else f"{headword}: {piece}"
             chunks.append(DictionaryChunk(headword, i, len(pieces), piece_text))
 
+    return chunks
+
+
+# ── Essay-style .txt (data/historia) ──────────────────────────────────────────
+#
+# Layout: the first paragraph is the document title, section headings are
+# single-line paragraphs with no closing punctuation ("O Golpe de 1964"), and
+# the rest are prose paragraphs. A lead-in such as "...transformações:" ends
+# with ":" so it is kept as prose, together with the list that follows it.
+_SECTION_HEADING = re.compile(r"^[^\n]{1,90}$")
+_CLOSING_PUNCTUATION = re.compile(r"[.!?:;…]$")
+
+
+@dataclass
+class SectionChunk:
+    title: str
+    section: str | None
+    text: str
+
+
+def _is_section_heading(paragraph: str) -> bool:
+    return bool(_SECTION_HEADING.match(paragraph)) and not _CLOSING_PUNCTUATION.search(
+        paragraph
+    )
+
+
+def chunk_sectioned_text(text: str, max_chars: int = 500) -> list[SectionChunk]:
+    """Split a titled, sectioned text into chunks that never cross a section
+    boundary or cut a sentence.
+
+    Consecutive paragraphs of the same section are packed together up to
+    max_chars; a paragraph longer than that is split on sentence boundaries.
+    Every chunk is prefixed with "Title — Section:" so a passage that never
+    names its topic (e.g. one about the AI-5, under the dictatorship file)
+    still carries it when embedded and when shown to the LLM on its own.
+    """
+    paragraphs = [_normalize(p) for p in re.split(r"\n\s*\n", text)]
+    paragraphs = [p for p in paragraphs if p]
+    if not paragraphs:
+        return []
+
+    title, paragraphs = paragraphs[0], paragraphs[1:]
+    chunks: list[SectionChunk] = []
+    section: str | None = None
+    pending: list[str] = []
+
+    def flush() -> None:
+        if not pending:
+            return
+        for group in _group_sentences(pending, max_chars):
+            prefix = f"{title} — {section}" if section else title
+            chunks.append(SectionChunk(title, section, f"{prefix}: {group}"))
+        pending.clear()
+
+    for paragraph in paragraphs:
+        if _is_section_heading(paragraph):
+            flush()
+            section = paragraph
+        elif len(paragraph) > max_chars:
+            pending.extend(_split_sentences(paragraph))
+        else:
+            pending.append(paragraph)
+
+    flush()
     return chunks
